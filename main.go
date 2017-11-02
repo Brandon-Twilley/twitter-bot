@@ -20,6 +20,17 @@ type redditParams struct {
 	redditSubmissions *[]*geddit.Submission
 }
 
+type stringArray struct {
+	array []string
+}
+
+//creates a new string for every period
+type sentenceArray struct {
+	array []string
+	strA  []stringArray
+	strB  node
+}
+
 var DEBUG = false
 
 func main() {
@@ -28,7 +39,7 @@ func main() {
 	redditParameters := (*initializeReddit())
 L:
 	//Acquire submissions from "totallynotrobots" subreddit.
-	submissions, err := redditParameters.redditBot.SubredditSubmissions("totallynotrobots", geddit.HotSubmissions, (*redditParameters.subredditOptions))
+	submissions, err := redditParameters.redditBot.SubredditSubmissions(SUBREDDIT_TO_SCRAPE, geddit.HotSubmissions, (*redditParameters.subredditOptions))
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(-1)
@@ -37,8 +48,6 @@ L:
 
 	sentenceArray := createStringArray(redditParameters)
 	mainGraph := buildStringTree(sentenceArray)
-
-	mainGraph.printGraph()
 
 	/*
 		Regular expression to filter out any characters that aren't alphanumeric
@@ -62,11 +71,11 @@ L:
 			}
 		}
 
-		time.Sleep(POST_RATE * time.Second)
 		processedString := reg.ReplaceAllString(post, "")
 		api.PostTweet(processedString, nil)
-
 		fmt.Println("Tweet posted: ", post)
+
+		time.Sleep(POST_RATE * time.Second)
 		i++
 		if i >= (86400 / int(POST_RATE)) {
 			goto L
@@ -160,13 +169,13 @@ func createStringArray(rp redditParams) []*stringArray {
 	return sArray2
 }
 
-func buildStringTree(sArray []*stringArray) *stringTree {
-	mainGraph := &stringTree{}
+func buildStringTree(sArray []*stringArray) *directedGraph {
+	mainGraph := &directedGraph{}
 	for i := 0; i < len(sArray); i++ {
-		sTree2 := &stringTree{}
+		sTree2 := &directedGraph{}
 		if sArray[i] != nil {
-			sTree2.build_tree(*sArray[i])
-			mainGraph.combine_network(*sTree2, 1)
+			sTree2.buildGraph(*sArray[i])
+			mainGraph.combineGraphs(*sTree2, 1)
 		}
 	}
 	return mainGraph
