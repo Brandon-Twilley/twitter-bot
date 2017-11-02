@@ -38,7 +38,7 @@ type sentenceArray struct {
 }
 
 type directedGraph struct {
-	s_branch []*node
+	nodes []*node
 }
 
 func (nodesBefore *arrayOfNodesBefore) combine_elem(in_bef arrayOfNodesBefore) *arrayOfNodesBefore {
@@ -61,7 +61,7 @@ func (nodesBefore *arrayOfNodesBefore) combine_elem(in_bef arrayOfNodesBefore) *
 	return nodesBefore
 }
 
-func (strTree *directedGraph) buildGraph(strA stringArray) *directedGraph {
+func (currentGraph *directedGraph) buildGraph(strA stringArray) *directedGraph {
 	if DEBUG {
 		fmt.Print("BUILDING TREE: < ")
 	}
@@ -78,49 +78,49 @@ func (strTree *directedGraph) buildGraph(strA stringArray) *directedGraph {
 		str_bra := &node{}
 		str_bra.nodesBefore = &arrayOfNodesBefore{total_weight: 0}
 		str_bra.nodesAfter = &arrayOfNodesAfter{total_weight: 0}
-		strTree.s_branch = append(strTree.s_branch, str_bra)
-		strTree.s_branch[i].str = strA.array[i]
+		currentGraph.nodes = append(currentGraph.nodes, str_bra)
+		currentGraph.nodes[i].str = strA.array[i]
 
 		// creates our directedGraph.
-		//Initializes our directedGraph to be composed of 's_branch'es.
-		//These 's_branch' es are initialized to not only be stringArrays,
+		//Initializes our directedGraph to be composed of 'nodes'es.
+		//These 'nodes' es are initialized to not only be stringArrays,
 		//but be set up in such a way that they are multidirectional hashes.
 		//      TODO: add concurrency to this function for quicker times.
 
 		if i == 0 {
-			strTree.s_branch[i].nodesBefore.before = nil
-			strTree.s_branch[i].nodesBefore.score_before = nil
+			currentGraph.nodes[i].nodesBefore.before = nil
+			currentGraph.nodes[i].nodesBefore.score_before = nil
 
 		} else if i == (len(strA.array) - 1) {
-			strTree.s_branch[i].nodesBefore.before = append(strTree.s_branch[i].nodesBefore.before, strTree.s_branch[i-1])
-			strTree.s_branch[i].nodesBefore.score_before = append(strTree.s_branch[i].nodesBefore.score_before, 0)
+			currentGraph.nodes[i].nodesBefore.before = append(currentGraph.nodes[i].nodesBefore.before, currentGraph.nodes[i-1])
+			currentGraph.nodes[i].nodesBefore.score_before = append(currentGraph.nodes[i].nodesBefore.score_before, 0)
 
-			strTree.s_branch[i].nodesAfter.after = nil
-			strTree.s_branch[i].nodesAfter.score_after = nil
+			currentGraph.nodes[i].nodesAfter.after = nil
+			currentGraph.nodes[i].nodesAfter.score_after = nil
 		} else {
-			strTree.s_branch[i].nodesBefore.before = append(strTree.s_branch[i].nodesBefore.before, strTree.s_branch[i-1])
-			strTree.s_branch[i].nodesBefore.score_before = append(strTree.s_branch[i].nodesBefore.score_before, 0)
+			currentGraph.nodes[i].nodesBefore.before = append(currentGraph.nodes[i].nodesBefore.before, currentGraph.nodes[i-1])
+			currentGraph.nodes[i].nodesBefore.score_before = append(currentGraph.nodes[i].nodesBefore.score_before, 0)
 
-			strTree.s_branch[i-1].nodesAfter.after = append(strTree.s_branch[i-1].nodesAfter.after, strTree.s_branch[i])
-			strTree.s_branch[i-1].nodesAfter.score_after = append(strTree.s_branch[i-1].nodesAfter.score_after, 0)
+			currentGraph.nodes[i-1].nodesAfter.after = append(currentGraph.nodes[i-1].nodesAfter.after, currentGraph.nodes[i])
+			currentGraph.nodes[i-1].nodesAfter.score_after = append(currentGraph.nodes[i-1].nodesAfter.score_after, 0)
 		}
 	}
 
-	return strTree
+	return currentGraph
 	//if there already were elements of that string
 }
 
 func (st directedGraph) find_element(in string) (bool, *node) {
 	sb := &node{}
 	ret := false
-	for i := 0; i < len(st.s_branch); i++ {
+	for i := 0; i < len(st.nodes); i++ {
 		//checks through all of our tree elements to see if there exists
 		//the element we're looking for.
 		//      TODO: add concurrency to this compare function for quicker times.
 
-		if Compare(in, st.s_branch[i].str) == 0 {
+		if Compare(in, st.nodes[i].str) == 0 {
 			ret = true
-			sb = st.s_branch[i]
+			sb = st.nodes[i]
 			return ret, sb
 		}
 	}
@@ -161,8 +161,8 @@ func (staft arrayOfNodesAfter) find_element(in string) (bool, *node, int) {
 func (st *directedGraph) combineGraphs(in directedGraph, weight int) *directedGraph {
 	if DEBUG {
 		fmt.Print("COMBINING TREES: < ")
-		for i := 0; i < len(in.s_branch); i++ {
-			fmt.Print(in.s_branch[i].str, " ")
+		for i := 0; i < len(in.nodes); i++ {
+			fmt.Print(in.nodes[i].str, " ")
 		}
 		fmt.Println(" > ")
 	}
@@ -177,9 +177,9 @@ func (st *directedGraph) combineGraphs(in directedGraph, weight int) *directedGr
 	sbArray := []*node{}
 	saArray := []*node{}
 
-	for i := 0; i < len(in.s_branch); i++ {
+	for i := 0; i < len(in.nodes); i++ {
 
-		exists, ptr := st.find_element(in.s_branch[i].str)
+		exists, ptr := st.find_element(in.nodes[i].str)
 		if exists {
 			//array of existing branch nodes
 			sbArray = append(sbArray, ptr)
@@ -188,20 +188,20 @@ func (st *directedGraph) combineGraphs(in directedGraph, weight int) *directedGr
 			//array of nonexistent branch nodes
 
 			if DEBUG {
-				fmt.Println("Creating element << ", in.s_branch[i].str)
+				fmt.Println("Creating element << ", in.nodes[i].str)
 			}
 
-			ptr := &node{str: in.s_branch[i].str}
+			ptr := &node{str: in.nodes[i].str}
 			ptr.nodesAfter = &arrayOfNodesAfter{total_weight: 0}
 			ptr.nodesBefore = &arrayOfNodesBefore{total_weight: 0}
 			saArray = append(saArray, ptr)
-			st.s_branch = append(st.s_branch, ptr)
+			st.nodes = append(st.nodes, ptr)
 		}
 	}
 
 	for i := 0; i < len(sbArray); i++ {
 
-		exists, ptr := st.find_element(in.s_branch[i].str)
+		exists, ptr := st.find_element(in.nodes[i].str)
 
 		if !exists {
 			fmt.Println("Not all pointers were correctly added to the st array.  \nTerminating on number: %i", i)
@@ -209,7 +209,7 @@ func (st *directedGraph) combineGraphs(in directedGraph, weight int) *directedGr
 		}
 		// We check to see if our previous element for the in branch  is already in our st array before branch.
 		if i != 0 {
-			exists, ptr2, i_out := ptr.nodesBefore.find_element(in.s_branch[i-1].str)
+			exists, ptr2, i_out := ptr.nodesBefore.find_element(in.nodes[i-1].str)
 
 			//if there is no element matching the string in our before array, we create another element for this.
 			/*
@@ -220,7 +220,7 @@ func (st *directedGraph) combineGraphs(in directedGraph, weight int) *directedGr
 
 			if !exists {
 
-				_, ptr2 = st.find_element(in.s_branch[i-1].str)
+				_, ptr2 = st.find_element(in.nodes[i-1].str)
 				ptr.nodesBefore.before = append(ptr.nodesBefore.before, ptr2)
 				ptr.nodesBefore.score_before = append(ptr.nodesBefore.score_before, weight)
 				//update weight
@@ -232,7 +232,7 @@ func (st *directedGraph) combineGraphs(in directedGraph, weight int) *directedGr
 				ptr.nodesBefore.total_weight = we
 
 				if DEBUG {
-					fmt.Println("Appending \"", ptr2.str, "\" -> \"", in.s_branch[i].str)
+					fmt.Println("Appending \"", ptr2.str, "\" -> \"", in.nodes[i].str)
 				}
 
 			} else {
@@ -258,13 +258,13 @@ func (st *directedGraph) combineGraphs(in directedGraph, weight int) *directedGr
 			-------------------------------------------------------------------------------------
 		*/
 
-		if i != len(in.s_branch)-1 {
+		if i != len(in.nodes)-1 {
 
-			exists, ptr2, i_out := ptr.nodesAfter.find_element(in.s_branch[i+1].str)
+			exists, ptr2, i_out := ptr.nodesAfter.find_element(in.nodes[i+1].str)
 
 			if !exists {
 
-				_, ptr2 = st.find_element(in.s_branch[i+1].str)
+				_, ptr2 = st.find_element(in.nodes[i+1].str)
 				ptr.nodesAfter.after = append(ptr.nodesAfter.after, ptr2)
 				ptr.nodesAfter.score_after = append(ptr.nodesAfter.score_after, weight)
 				//update weight
@@ -276,7 +276,7 @@ func (st *directedGraph) combineGraphs(in directedGraph, weight int) *directedGr
 				ptr.nodesAfter.total_weight = we
 
 				if DEBUG {
-					fmt.Println("Appending \"", in.s_branch[i].str, "\" <- \"", ptr2.str)
+					fmt.Println("Appending \"", in.nodes[i].str, "\" <- \"", ptr2.str)
 					fmt.Println("Updating weight \"", ptr.str, "\" <- \"", ptr.nodesAfter.after[i_out].str, "\"\tWeight: ", ptr.nodesAfter.total_weight, "\t", ptr.nodesAfter.score_after)
 
 				}
@@ -304,24 +304,24 @@ func (st directedGraph) printGraph() {
 
 	fmt.Println("PRINTING NETWORK")
 
-	for i := 0; i < len(st.s_branch); i++ {
+	for i := 0; i < len(st.nodes); i++ {
 		fmt.Println()
 
-		if len(st.s_branch[i].nodesBefore.before) == 0 {
+		if len(st.nodes[i].nodesBefore.before) == 0 {
 			fmt.Print("nil")
 		} else {
-			for j := 0; j < len(st.s_branch[i].nodesBefore.before); j++ {
-				fmt.Print("<", st.s_branch[i].nodesBefore.before[j], ">")
+			for j := 0; j < len(st.nodes[i].nodesBefore.before); j++ {
+				fmt.Print("<", st.nodes[i].nodesBefore.before[j], ">")
 			}
 		}
 
-		fmt.Print(" <- ", st.s_branch[i].str, " -> ")
+		fmt.Print(" <- ", st.nodes[i].str, " -> ")
 
-		if len(st.s_branch[i].nodesAfter.after) == 0 {
+		if len(st.nodes[i].nodesAfter.after) == 0 {
 			fmt.Print("nil")
 		} else {
-			for j := 0; j < len(st.s_branch[i].nodesAfter.after); j++ {
-				fmt.Print("<", st.s_branch[i].nodesAfter.after[j], ">")
+			for j := 0; j < len(st.nodes[i].nodesAfter.after); j++ {
+				fmt.Print("<", st.nodes[i].nodesAfter.after[j], ">")
 			}
 		}
 	}
