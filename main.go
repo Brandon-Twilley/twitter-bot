@@ -1,170 +1,94 @@
 package main
 
-import(
-	"github.com/jzelinskie/geddit"
-	"github.com/ChimeraCoder/anaconda"
-	"time"
-	"strings"
+import (
 	"fmt"
+	"os"
+	"regexp"
+	"strings"
+	"time"
 	"unicode/utf8"
-	"io/ioutil"
-	"net/url"
-	"strconv"
-	"encoding/base64"
-	"net"
-	"io"
+
+	"github.com/ChimeraCoder/anaconda"
+	"github.com/jzelinskie/geddit"
 )
 
-var api *anaconda.TwitterApi;
+var api *anaconda.TwitterApi
+
+type redditParams struct {
+	redditBot         *geddit.LoginSession
+	subredditOptions  *geddit.ListingOptions
+	redditSubmissions *[]*geddit.Submission
+}
+
+var DEBUG = false
 
 func main() {
-	
-	api = initializeTwitter();
-	api.PostTweet("this is an api test",nil);
-
-	L:
-	twit_bot := initializeTwitter();
-	redd_bot,subOpts,err := initializeReddit();
-
+	//Initializes twitter and reddit connection from the conf.go configurations
+	api = initializeTwitter()
+	redditParameters := (*initializeReddit())
+L:
+	//Acquire submissions from "totallynotrobots" subreddit.
+	submissions, err := redditParameters.redditBot.SubredditSubmissions("totallynotrobots", geddit.HotSubmissions, (*redditParameters.subredditOptions))
 	if err != nil {
-		fmt.Errorf(err.Error());
-		time.Sleep(2*time.Second)
-		goto L
+		fmt.Println(err)
+		os.Exit(-1)
 	}
+	redditParameters.redditSubmissions = &submissions
 
-	submissions,err := redd_bot.SubredditSubmissions(SUBREDDIT_TO_SCRAPE, geddit.HotSubmissions,*subOpts)
-	if err != nil {
-		fmt.Errorf(err.Error());
-	}
-	sArray := createStringArray(redd_bot, subOpts,submissions)
-	submissions, err = redd_bot.SubredditSubmissions("totallynotrobots", geddit.HotSubmissions, *subOpts)
+	sentenceArray := createStringArray(redditParameters)
+	mainGraph := buildStringTree(sentenceArray)
 
-	sArray2 := createStringArray(redd_bot, subOpts, submissions)
+	mainGraph.printGraph()
 
-	sArray = append(sArray, sArray2...)
+	/*
+		Regular expression to filter out any characters that aren't alphanumeric
+	*/
+	reg, err := regexp.Compile("[^a-zA-Z0-9 ]")
 
-	mainTree := buildStringTree(sArray);
-
-
-
-	//PostImageToTwitter("output.jpg","Testing API", twit_bot);
-
-	//post image end
+	/*
+		i is used to count the amount of posts that are made each day.  After
+		posting (86400/POST_RATE) posts, we refresh, meaning we've posted a
+		days worth of tweets, refreshing each day.
+	*/
 	i := 0
 
 	for true {
-		var str string;
+		var post string
 		for true {
-			str=*tree_iterator1(*mainTree)
-			if utf8.RuneCountInString(str) >140 {
-
+			post = *traverseGraph(*mainGraph)
+			if utf8.RuneCountInString(post) > 140 {
 			} else {
-				break;
+				break
 			}
 		}
-		str = str[0:len(str)-1]
 
+		time.Sleep(POST_RATE * time.Second)
+		processedString := reg.ReplaceAllString(post, "")
+		api.PostTweet(processedString, nil)
 
-		time.Sleep(POST_RATE * time.Second);
-		
-		path,is_sfw := build_image(str);
-				
-		PostImageToTwitter(path,str,is_sfw,twit_bot);
-		fmt.Println("Tweet posted: ",str);
+		fmt.Println("Tweet posted: ", post)
 		i++
-		if i >= (86400/int(POST_RATE)) {
+		if i >= (86400 / int(POST_RATE)) {
 			goto L
-			i=0;
+			i = 0
 		}
 	}
 }
 
-func build_image(post string) (path string, is_sfw bool) {
-	
-	is_sfw = false;
-	fmt.Println("Pinging scraper: ")
-	send("PING`"+post, "9000");
-	
-	str := listen("9002");
-	str2 := strings.Split(str,"`");
-	path = str2[0];
-	if Compare(str2[1],"true")==0 {
-		is_sfw=true;
-	} else {
-		is_sfw=false;
-	}
-	
-	return path, is_sfw;
-}
+func initializeTwitter() *anaconda.TwitterApi {
 
-func send(in string, port string) {
-	ln, err := net.Listen("tcp", "localhost:"+port);
-	if err != nil {
-		panic(err)
-	}
-	
-	defer ln.Close();
-	
-	conn, err := ln.Accept()
-	if err != nil {
-		panic(err)
-	}
-	
-	io.WriteString(conn, fmt.Sprint(in));
-	
-	conn.Close();
-}
-
-func listen(port string) (out string) {
-	L:
-	conn, err := net.Dial("tcp", "localhost:"+port)
-	if err != nil {
-		goto L
-	}
-	
-	defer conn.Close();
-	
-	bs,_ := ioutil.ReadAll(conn)
-	return (string(bs))
-}
-
-func PostImageToTwitter(path string, post string,is_sfw bool, twit_bot *anaconda.TwitterApi) {
-	data, err := ioutil.ReadFile(path)
-	if err != nil{
-		fmt.Println(err)
-	}
-
-	mediaResponse, err := twit_bot.UploadMedia(base64.StdEncoding.EncodeToString(data))
-	if err != nil {
-		fmt.Println(err)
-	}
-
-	v := url.Values{}
-	v.Set("media_ids", strconv.FormatInt(mediaResponse.MediaID, 10))
-	v.Add("possibly_sensitive",strconv.FormatBool(is_sfw));
-	result, err := twit_bot.PostTweet(post, v)
-	if err != nil {
-		fmt.Println(err)
-	} else {
-		fmt.Println(result)
-	}
-}
-
-//HOW TO TWEET: api.PostTweet("<TEXT>", nil);
-
-func initializeTwitter() (*anaconda.TwitterApi) {
-
-
+	//retrieves constants from conf.go to initiate twitter connection.
 	anaconda.SetConsumerKey(CONSUMER_KEY)
 	anaconda.SetConsumerSecret(CONSUMER_SECRET)
-	api := anaconda.NewTwitterApi(TOKEN, TOKEN_SECRET);
-
+	api := anaconda.NewTwitterApi(TOKEN, TOKEN_SECRET)
 	return api
 
 }
 
-func initializeReddit() (session *geddit.LoginSession, subOpts *geddit.ListingOptions, err error) {
-	session, err = geddit.NewLoginSession(
+func initializeReddit() *redditParams {
+	redditConnectionAttempts := 0
+L:
+	session, err := geddit.NewLoginSession(
 		REDDIT_USERNAME,
 		REDDIT_PASSWORD,
 		REDDIT_BOT_NAME,
@@ -172,7 +96,6 @@ func initializeReddit() (session *geddit.LoginSession, subOpts *geddit.ListingOp
 
 	if REDDIT_BOT_NAME == "" {
 		fmt.Println("No bot name was specified.  Please check the conf.go file for configurations.")
-
 	}
 	if REDDIT_USERNAME == "" {
 		fmt.Println("No username was specified.  Please check the conf.go file for configuration")
@@ -180,57 +103,71 @@ func initializeReddit() (session *geddit.LoginSession, subOpts *geddit.ListingOp
 	if REDDIT_PASSWORD == "" {
 		fmt.Println("No password was specified.  Please check the conf.go file for configuration")
 	}
-
 	if err != nil {
 		fmt.Println("There was an error in communication with reddit.")
+		fmt.Println(err)
+		//if 3 attempts have failed, we exit the program.
+		if redditConnectionAttempts == 3 {
+			fmt.Println("UNABLE TO CONNECT TO REDDIT")
+			os.Exit(-1)
+		}
+		redditConnectionAttempts = redditConnectionAttempts + 1
+		time.Sleep(2 * time.Second)
+		goto L
 	}
-
-	subOpts = &geddit.ListingOptions{Limit:THREAD_SAMPLE_COUNT}
-
-	return session, subOpts, err;
+	subOpts := &geddit.ListingOptions{Limit: THREAD_SAMPLE_COUNT}
+	rp := &redditParams{redditBot: session, subredditOptions: subOpts}
+	return rp
 }
 
+/*
+	returns an array of everything written, separated by sentences (periods)
+	and the end of posts
+*/
+func createStringArray(rp redditParams) []*stringArray {
+	//sArray
+	sArray2 := make([]*stringArray, 1)
 
-func createStringArray(session *geddit.LoginSession, subOpts *geddit.ListingOptions, submissions []*geddit.Submission) (sArray2 []*stringArray) {
-
-	sArray2 =make([]*stringArray,1);
-
-	for k:=0;k<len(submissions);k++ {
-		comments,_ :=session.Comments(submissions[k]);
-
-
-		for i:=0;i<len(comments);i++ {
-			fmt.Println(comments[i].Body)
+	for k := 0; k < len(*(rp.redditSubmissions)); k++ {
+		comments, err := rp.redditBot.Comments((*rp.redditSubmissions)[k])
+		if err != nil {
+			fmt.Println("COULD NOT RETRIEVE COMMENTS FROM SUBREDDIT")
+			os.Exit(-1)
+		}
+		if DEBUG {
+			for i := 0; i < len(comments); i++ {
+				fmt.Println(comments[i].Body)
+			}
 		}
 
-
-		for i:=0;i<len(comments);i++ {
-
-			cmt:=strings.Split(comments[i].Body,".");
-			for j:=0;j<len(cmt);j++ {
-
-				if strings.Contains(cmt[j],"/") {
-					break;
+		for i := 0; i < len(comments); i++ {
+			cmt := strings.Split(comments[i].Body, ".")
+			for j := 0; j < len(cmt); j++ {
+				if strings.Contains(cmt[j], "/") {
+					break
 				}
-				
-				//cmt[j] = strings.toLower(??);
-				
-				sArray2 = append(sArray2,toStringArray(cmt[j]));
+				sArray2 = append(sArray2, toStringArray(cmt[j]))
 			}
 		}
 	}
-	return sArray2;
-}
-
-func buildStringTree(sArray []*stringArray) (*stringTree) {
-	mainTree := &stringTree{};
-	for i:=0;i<len(sArray);i++ {
-		sTree2 := &stringTree{};
-		if sArray[i] != nil {
-			sTree2.build_tree(*sArray[i]);
-			mainTree.combine_network(*sTree2,1,false);
+	if DEBUG {
+		fmt.Print("Creating String array: ")
+		for i := 0; i < len(sArray2); i++ {
+			fmt.Println(sArray2[i])
 		}
 	}
-	return mainTree
+
+	return sArray2
 }
 
+func buildStringTree(sArray []*stringArray) *stringTree {
+	mainGraph := &stringTree{}
+	for i := 0; i < len(sArray); i++ {
+		sTree2 := &stringTree{}
+		if sArray[i] != nil {
+			sTree2.build_tree(*sArray[i])
+			mainGraph.combine_network(*sTree2, 1)
+		}
+	}
+	return mainGraph
+}
