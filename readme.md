@@ -28,3 +28,7 @@ golang reddit API plugin (github.com/jzelinskie/geddit)
 1.  Build hash structure for directed graph to search through nodes more efficiently.
 2.  Build database functionality.
 3.  Integrate with vis.js in order to visualize directed graph.
+
+**EXAMPLE**
+
+The bot can be seen running at the URL: `www.twitter.com/justbotthings1`

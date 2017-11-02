@@ -20,14 +20,14 @@ type redditParams struct {
 	redditSubmissions *[]*geddit.Submission
 }
 
-type stringArray struct {
+type wordArray struct {
 	array []string
 }
 
 //creates a new string for every period
 type sentenceArray struct {
 	array []string
-	strA  []stringArray
+	strA  []wordArray
 	strB  node
 }
 
@@ -47,7 +47,7 @@ L:
 	redditParameters.redditSubmissions = &submissions
 
 	sentenceArray := createStringArray(redditParameters)
-	mainGraph := buildStringTree(sentenceArray)
+	mainGraph := buildInitialGraph(sentenceArray)
 
 	/*
 		Regular expression to filter out any characters that aren't alphanumeric
@@ -64,7 +64,9 @@ L:
 	for true {
 		var post string
 		for true {
-			post = *traverseGraph(*mainGraph)
+			subgraph := traverseGraph(mainGraph)
+			post = subgraph.iterateGraph()
+			//post = *traverseGraph(*mainGraph)
 			if utf8.RuneCountInString(post) > 140 {
 			} else {
 				break
@@ -133,9 +135,9 @@ L:
 	returns an array of everything written, separated by sentences (periods)
 	and the end of posts
 */
-func createStringArray(rp redditParams) []*stringArray {
-	//sArray
-	sArray2 := make([]*stringArray, 1)
+func createStringArray(rp redditParams) []*wordArray {
+	//sentenceArray
+	words := make([]*wordArray, 1)
 
 	for k := 0; k < len(*(rp.redditSubmissions)); k++ {
 		comments, err := rp.redditBot.Comments((*rp.redditSubmissions)[k])
@@ -155,27 +157,27 @@ func createStringArray(rp redditParams) []*stringArray {
 				if strings.Contains(cmt[j], "/") {
 					break
 				}
-				sArray2 = append(sArray2, toStringArray(cmt[j]))
+				words = append(words, toWordArray(cmt[j]))
 			}
 		}
 	}
 	if DEBUG {
 		fmt.Print("Creating String array: ")
-		for i := 0; i < len(sArray2); i++ {
-			fmt.Println(sArray2[i])
+		for i := 0; i < len(words); i++ {
+			fmt.Println(words[i])
 		}
 	}
 
-	return sArray2
+	return words
 }
 
-func buildStringTree(sArray []*stringArray) *directedGraph {
+func buildInitialGraph(words []*wordArray) *directedGraph {
 	mainGraph := &directedGraph{}
-	for i := 0; i < len(sArray); i++ {
+	for i := 0; i < len(words); i++ {
 		sTree2 := &directedGraph{}
-		if sArray[i] != nil {
-			sTree2.buildGraph(*sArray[i])
-			mainGraph.combineGraphs(*sTree2, 1)
+		if words[i] != nil {
+			sTree2.buildGraph(*words[i])
+			mainGraph.combineGraphs(*sTree2)
 		}
 	}
 	return mainGraph
