@@ -110,30 +110,34 @@ func (mainGraph *directedGraph) combineGraphs(secondaryGraph directedGraph) *dir
 		fmt.Println(" > ")
 	}
 
-	sbArray := []*node{}
-	saArray := []*node{}
+	subgraph_maingraph_intersection := []*node{}
+	subgraph_minus_maingraph := []*node{}
 	for i := 0; i < len(secondaryGraph.nodes); i++ {
-		exists, ptr, _ := find_element(secondaryGraph.nodes[i].word, mainGraph.nodes)
+		exists, current_secondary_graph_node, _ := find_element(secondaryGraph.nodes[i].word, mainGraph.nodes)
 		if exists {
-			//array of existing nodes
-			sbArray = append(sbArray, ptr)
+			/*
+				Array of nodes that exist both in our main graph and our secondary graph
+			*/
+			subgraph_maingraph_intersection = append(subgraph_maingraph_intersection, current_secondary_graph_node)
 		} else {
-			//array of nonexistent nodes
+			/*
+				Array of nodes that exist in our secondary graph, but not our main graph.
+			*/
 
 			if DEBUG {
 				fmt.Println("Creating element << ", secondaryGraph.nodes[i].word)
 			}
-			ptr := &node{word: secondaryGraph.nodes[i].word}
-			ptr.nodesAfter = &arrayOfNodesAfter{}
-			ptr.nodesBefore = &arrayOfNodesBefore{}
-			saArray = append(saArray, ptr)
-			mainGraph.nodes = append(mainGraph.nodes, ptr)
+			current_secondary_graph_node := createNode()
+			current_secondary_graph_node.word = secondaryGraph.nodes[i].word
+
+			subgraph_minus_maingraph = append(subgraph_minus_maingraph, current_secondary_graph_node)
+			mainGraph.nodes = append(mainGraph.nodes, current_secondary_graph_node)
 		}
 	}
 
-	for i := 0; i < len(sbArray); i++ {
+	for i := 0; i < len(subgraph_maingraph_intersection); i++ {
 
-		exists, ptr, _ := find_element(secondaryGraph.nodes[i].word, mainGraph.nodes)
+		exists, current_secondary_graph_node, _ := find_element(secondaryGraph.nodes[i].word, mainGraph.nodes)
 
 		if !exists {
 			fmt.Println("Not all pointers were correctly added to the mainGraph array.  \nTerminating on number: %i", i)
@@ -141,7 +145,7 @@ func (mainGraph *directedGraph) combineGraphs(secondaryGraph directedGraph) *dir
 		}
 		// We check to see if our previous element for the in branch  is already in our mainGraph array before branch.
 		if i != 0 {
-			exists, ptr2, _ := find_element(secondaryGraph.nodes[i-1].word, ptr.nodesBefore.before)
+			exists, ptr2, _ := find_element(secondaryGraph.nodes[i-1].word, current_secondary_graph_node.nodesBefore.before)
 			//if there is no element matching the string in our before array, we create another element for this.
 			/*
 				-------------------------------------------------------------------------------------
@@ -151,7 +155,7 @@ func (mainGraph *directedGraph) combineGraphs(secondaryGraph directedGraph) *dir
 
 			if !exists {
 				_, ptr2, _ = find_element(secondaryGraph.nodes[i-1].word, mainGraph.nodes)
-				ptr.nodesBefore.before = append(ptr.nodesBefore.before, ptr2)
+				current_secondary_graph_node.nodesBefore.before = append(current_secondary_graph_node.nodesBefore.before, ptr2)
 				if DEBUG {
 					fmt.Println("Appending \"", ptr2.word, "\" -> \"", secondaryGraph.nodes[i].word)
 				}
@@ -166,11 +170,11 @@ func (mainGraph *directedGraph) combineGraphs(secondaryGraph directedGraph) *dir
 		*/
 
 		if i != len(secondaryGraph.nodes)-1 {
-			exists, ptr2, _ := find_element(secondaryGraph.nodes[i+1].word, ptr.nodesAfter.after)
+			exists, ptr2, _ := find_element(secondaryGraph.nodes[i+1].word, current_secondary_graph_node.nodesAfter.after)
 
 			if !exists {
 				_, ptr2, _ = find_element(secondaryGraph.nodes[i+1].word, mainGraph.nodes)
-				ptr.nodesAfter.after = append(ptr.nodesAfter.after, ptr2)
+				current_secondary_graph_node.nodesAfter.after = append(current_secondary_graph_node.nodesAfter.after, ptr2)
 			}
 		}
 	}
@@ -216,10 +220,10 @@ func (mainGraph directedGraph) printGraph() {
 	mainGraph is our main graph.  subgraph is the graph we're creating
 */
 func traverseGraph(mainGraph *directedGraph) *directedGraph {
-	//create graph and begin our new graph with the initial element.
-	_, begin, _ := find_element(INITIATING_CHARACTER, mainGraph.nodes)
+	//create graph and initiatingNode our new graph with the initial element.
+	_, initiatingNode, _ := find_element(INITIATING_CHARACTER, mainGraph.nodes)
 	subgraph := &directedGraph{}
-	currentMainGraphNode := begin
+	currentMainGraphNode := initiatingNode
 	var currentSubGraphNode *node
 	var previousSubGraphNode *node
 
@@ -236,7 +240,7 @@ func traverseGraph(mainGraph *directedGraph) *directedGraph {
 			currentSubGraphNode.word = currentMainGraphNode.word
 			subgraph = subgraph.appendNode(currentSubGraphNode)
 
-			if Compare(currentSubGraphNode.word, begin.word) == 0 {
+			if Compare(currentSubGraphNode.word, initiatingNode.word) == 0 {
 
 			} else { //link previous node with current node if our current node isn't the initial node.
 				fmt.Println("PREVIOUS NODE: ", previousSubGraphNode)
@@ -317,26 +321,3 @@ func (mainGraph directedGraph) removeNode(currentNode *node) *directedGraph {
 	From here, we create a beginning character (/u65e5) and a terminating
 	character (/u65e6) from
 */
-func toWordArray(input string) *wordArray {
-
-	array_of_words := &wordArray{}
-	array_of_words.array = append(array_of_words.array, INITIATING_CHARACTER)
-	inputArray := strings.Split(input, " ")
-	for i := 0; i < len(inputArray); i++ {
-		array_of_words.array = append(array_of_words.array, inputArray[i])
-	}
-	array_of_words.array = append(array_of_words.array, TERMINATING_CHARACTER)
-
-	return array_of_words
-}
-
-//simple string comparison operator.
-func Compare(a string, b string) int {
-	if a == b {
-		return 0
-	}
-	if a < b {
-		return -1
-	}
-	return 1
-}
