@@ -8,6 +8,9 @@ import (
 	"time"
 )
 
+var TERMINATING_CHARACTER = "\u65e6"
+var INITIATING_CHARACTER = "\u65e5"
+
 type arrayOfNodesBefore struct {
 	before []*node
 }
@@ -18,7 +21,7 @@ type arrayOfNodesAfter struct {
 
 type node struct {
 	nodesBefore *arrayOfNodesBefore
-	str         string
+	word        string
 	nodesAfter  *arrayOfNodesAfter
 }
 
@@ -30,7 +33,7 @@ func createNode() *node {
 	currentNode := &node{}
 	currentNode.nodesBefore = &arrayOfNodesBefore{}
 	currentNode.nodesAfter = &arrayOfNodesAfter{}
-	currentNode.str = ""
+	currentNode.word = ""
 
 	return currentNode
 }
@@ -41,20 +44,20 @@ func createNode() *node {
 	These nodes are linked by words directly before and after them, so they
 	would then be a doubly linked directed graph.
 */
-func (currentGraph *directedGraph) buildGraph(wordA wordArray) *directedGraph {
+func (currentGraph *directedGraph) buildGraph(array_of_words wordArray) *directedGraph {
 	if DEBUG {
 		fmt.Print("Building Graph:")
 	}
 
-	for i := 0; i < len(wordA.array); i++ {
+	for i := 0; i < len(array_of_words.array); i++ {
 		currentNode := createNode()
 		currentGraph.nodes = append(currentGraph.nodes, currentNode)
-		currentGraph.nodes[i].str = wordA.array[i]
+		currentGraph.nodes[i].word = array_of_words.array[i]
 
 		if i == 0 {
 			currentGraph.nodes[i].nodesBefore.before = nil
 
-		} else if i == (len(wordA.array) - 1) {
+		} else if i == (len(array_of_words.array) - 1) {
 			currentGraph.nodes[i].nodesBefore.before = append(currentGraph.nodes[i].nodesBefore.before, currentGraph.nodes[i-1])
 			currentGraph.nodes[i].nodesAfter.after = nil
 		} else {
@@ -77,125 +80,68 @@ func (currentGraph *directedGraph) buildGraph(wordA wordArray) *directedGraph {
 	TODO: create hash table and/or concurrent processes for fast traversal
 	through directed graph.
 	TODO: Combine find_element function for []*node datatype
+		DONE
 */
-func (dGraph directedGraph) find_element(in string) (bool, *node, int) {
-	sb := &node{}
-	ret := false
-	for i := 0; i < len(dGraph.nodes); i++ {
+
+func find_element(in string, nodeArray []*node) (bool, *node, int) {
+	currentNode := &node{}
+	nodeExists := false
+	for i := 0; i < len(nodeArray); i++ {
 		//checks through all of our tree elements to see if there exists
 		//the element we're looking for.
 		//      TODO: add concurrency to this compare function for quicker times.
 
-		if Compare(in, dGraph.nodes[i].str) == 0 {
-			ret = true
-			sb = dGraph.nodes[i]
-			return ret, sb, i
+		if Compare(in, nodeArray[i].word) == 0 {
+			nodeExists = true
+			currentNode = nodeArray[i]
+			return nodeExists, currentNode, i
 		}
 	}
-	sb = nil
-	return ret, sb, 0
+	currentNode = nil
+	return nodeExists, currentNode, 0
 }
 
-/*
-	This function searches through the list of existing elements within all
-	words that were found to precede the word we're looking at.  If it exists,
-	the node (structure holding the word) is returned and our function also
-	returns a true.  If no word was found, we return a false in our boolean
-	and a null on our node pointer.
-*/
-func (stbbef arrayOfNodesBefore) find_element(in string) (bool, *node, int) {
-
-	sb := &node{}
-	ret := false
-	for i := 0; i < len(stbbef.before); i++ {
-		//checks through all of our tree elements to see if there exists
-		//the element we're looking for.
-		//      TODO: add concurrency to this compare function for quicker times.
-
-		if Compare(in, stbbef.before[i].str) == 0 {
-			ret = true
-			sb = stbbef.before[i]
-			return ret, sb, i
-		}
-	}
-	sb = nil
-	return ret, sb, 0
-}
-
-/*
-	This function searches through the list of existing elements within all
-	words that were found after the word we're looking at.  If it exists,
-	the node (structure holding the word) is returned and our function also
-	returns a true.  If no word was found, we return a false in our boolean
-	and a null on our node pointer.
-*/
-
-func (staft arrayOfNodesAfter) find_element(in string) (bool, *node, int) {
-	sb := &node{}
-	ret := false
-	for i := 0; i < len(staft.after); i++ {
-		//checks through all of our tree elements to see if there exists
-		//the element we're looking for.
-		//      TODO: add concurrency to this compare function for quicker times.
-
-		if Compare(in, staft.after[i].str) == 0 {
-			ret = true
-			sb = staft.after[i]
-			return ret, sb, i
-		}
-	}
-	sb = nil
-	return ret, sb, 0
-}
-
-/*
-   This creates 2 arrays.  The first array stores all elements that exist both in the dGraph
-   structure and the in structure.  Our second array stores all the elements that exist in
-   our in structre, but not our dGraph structure.  Afterwards, this adds all elements into
-   another array called the updateArray.
-*/
-func (dGraph *directedGraph) combineGraphs(in directedGraph) *directedGraph {
+func (mainGraph *directedGraph) combineGraphs(secondaryGraph directedGraph) *directedGraph {
 	if DEBUG {
 		fmt.Print("COMBINING TREES: < ")
-		for i := 0; i < len(in.nodes); i++ {
-			fmt.Print(in.nodes[i].str, " ")
+		for i := 0; i < len(secondaryGraph.nodes); i++ {
+			fmt.Print(secondaryGraph.nodes[i].word, " ")
 		}
 		fmt.Println(" > ")
 	}
 
 	sbArray := []*node{}
 	saArray := []*node{}
-	for i := 0; i < len(in.nodes); i++ {
-		exists, ptr, _ := dGraph.find_element(in.nodes[i].str)
+	for i := 0; i < len(secondaryGraph.nodes); i++ {
+		exists, ptr, _ := find_element(secondaryGraph.nodes[i].word, mainGraph.nodes)
 		if exists {
-			//array of existing branch nodes
+			//array of existing nodes
 			sbArray = append(sbArray, ptr)
 		} else {
-			//array of nonexistent branch nodes
+			//array of nonexistent nodes
 
 			if DEBUG {
-				fmt.Println("Creating element << ", in.nodes[i].str)
+				fmt.Println("Creating element << ", secondaryGraph.nodes[i].word)
 			}
-			ptr := &node{str: in.nodes[i].str}
+			ptr := &node{word: secondaryGraph.nodes[i].word}
 			ptr.nodesAfter = &arrayOfNodesAfter{}
 			ptr.nodesBefore = &arrayOfNodesBefore{}
 			saArray = append(saArray, ptr)
-			dGraph.nodes = append(dGraph.nodes, ptr)
+			mainGraph.nodes = append(mainGraph.nodes, ptr)
 		}
 	}
 
 	for i := 0; i < len(sbArray); i++ {
 
-		exists, ptr, _ := dGraph.find_element(in.nodes[i].str)
+		exists, ptr, _ := find_element(secondaryGraph.nodes[i].word, mainGraph.nodes)
 
 		if !exists {
-			fmt.Println("Not all pointers were correctly added to the dGraph array.  \nTerminating on number: %i", i)
+			fmt.Println("Not all pointers were correctly added to the mainGraph array.  \nTerminating on number: %i", i)
 			return nil
 		}
-		// We check to see if our previous element for the in branch  is already in our dGraph array before branch.
+		// We check to see if our previous element for the in branch  is already in our mainGraph array before branch.
 		if i != 0 {
-			exists, ptr2, _ := ptr.nodesBefore.find_element(in.nodes[i-1].str)
-
+			exists, ptr2, _ := find_element(secondaryGraph.nodes[i-1].word, ptr.nodesBefore.before)
 			//if there is no element matching the string in our before array, we create another element for this.
 			/*
 				-------------------------------------------------------------------------------------
@@ -204,10 +150,10 @@ func (dGraph *directedGraph) combineGraphs(in directedGraph) *directedGraph {
 			*/
 
 			if !exists {
-				_, ptr2, _ = dGraph.find_element(in.nodes[i-1].str)
+				_, ptr2, _ = find_element(secondaryGraph.nodes[i-1].word, mainGraph.nodes)
 				ptr.nodesBefore.before = append(ptr.nodesBefore.before, ptr2)
 				if DEBUG {
-					fmt.Println("Appending \"", ptr2.str, "\" -> \"", in.nodes[i].str)
+					fmt.Println("Appending \"", ptr2.word, "\" -> \"", secondaryGraph.nodes[i].word)
 				}
 
 			}
@@ -219,45 +165,44 @@ func (dGraph *directedGraph) combineGraphs(in directedGraph) *directedGraph {
 			-------------------------------------------------------------------------------------
 		*/
 
-		if i != len(in.nodes)-1 {
-
-			exists, ptr2, _ := ptr.nodesAfter.find_element(in.nodes[i+1].str)
+		if i != len(secondaryGraph.nodes)-1 {
+			exists, ptr2, _ := find_element(secondaryGraph.nodes[i+1].word, ptr.nodesAfter.after)
 
 			if !exists {
-				_, ptr2, _ = dGraph.find_element(in.nodes[i+1].str)
+				_, ptr2, _ = find_element(secondaryGraph.nodes[i+1].word, mainGraph.nodes)
 				ptr.nodesAfter.after = append(ptr.nodesAfter.after, ptr2)
 			}
 		}
 	}
-	return dGraph
+	return mainGraph
 }
 
 /*
 	TODO: Printed results could look better.  Consider integrating vis.js
 	functionality to result.
 */
-func (dGraph directedGraph) printGraph() {
+func (mainGraph directedGraph) printGraph() {
 
 	fmt.Println("PRINTING NETWORK")
 
-	for i := 0; i < len(dGraph.nodes); i++ {
+	for i := 0; i < len(mainGraph.nodes); i++ {
 		fmt.Println()
 
-		if len(dGraph.nodes[i].nodesBefore.before) == 0 {
+		if len(mainGraph.nodes[i].nodesBefore.before) == 0 {
 			fmt.Print("nil")
 		} else {
-			for j := 0; j < len(dGraph.nodes[i].nodesBefore.before); j++ {
-				fmt.Print("<", dGraph.nodes[i].nodesBefore.before[j], ">")
+			for j := 0; j < len(mainGraph.nodes[i].nodesBefore.before); j++ {
+				fmt.Print("<", mainGraph.nodes[i].nodesBefore.before[j], ">")
 			}
 		}
 
-		fmt.Print(" <- ", dGraph.nodes[i].str, " -> ")
+		fmt.Print(" <- ", mainGraph.nodes[i].word, " -> ")
 
-		if len(dGraph.nodes[i].nodesAfter.after) == 0 {
+		if len(mainGraph.nodes[i].nodesAfter.after) == 0 {
 			fmt.Print("nil")
 		} else {
-			for j := 0; j < len(dGraph.nodes[i].nodesAfter.after); j++ {
-				fmt.Print("<", dGraph.nodes[i].nodesAfter.after[j], ">")
+			for j := 0; j < len(mainGraph.nodes[i].nodesAfter.after); j++ {
+				fmt.Print("<", mainGraph.nodes[i].nodesAfter.after[j], ">")
 			}
 		}
 	}
@@ -268,12 +213,11 @@ func (dGraph directedGraph) printGraph() {
 	from our graph, we create a subgraph (a specific traversal of the graph that doesn't
 	have cycles within it).  This is the phrase we return and post to twitter.
 
-	dGraph is our main graph.  subgraph is the graph we're creating
+	mainGraph is our main graph.  subgraph is the graph we're creating
 */
-func traverseGraph(dGraph *directedGraph) *directedGraph {
+func traverseGraph(mainGraph *directedGraph) *directedGraph {
 	//create graph and begin our new graph with the initial element.
-
-	_, begin, _ := dGraph.find_element("\u65e5")
+	_, begin, _ := find_element(INITIATING_CHARACTER, mainGraph.nodes)
 	subgraph := &directedGraph{}
 	currentMainGraphNode := begin
 	var currentSubGraphNode *node
@@ -282,18 +226,17 @@ func traverseGraph(dGraph *directedGraph) *directedGraph {
 	restart := false
 
 	for true {
-
-		exists, _, _ := subgraph.find_element(currentMainGraphNode.str)
+		exists, _, _ := find_element(currentMainGraphNode.word, subgraph.nodes)
 		if exists {
 			restart = true
 			break
 		} else {
 			//create our currentsubgraphnode
 			currentSubGraphNode = createNode()
-			currentSubGraphNode.str = currentMainGraphNode.str
+			currentSubGraphNode.word = currentMainGraphNode.word
 			subgraph = subgraph.appendNode(currentSubGraphNode)
 
-			if Compare(currentSubGraphNode.str, begin.str) == 0 {
+			if Compare(currentSubGraphNode.word, begin.word) == 0 {
 
 			} else { //link previous node with current node if our current node isn't the initial node.
 				fmt.Println("PREVIOUS NODE: ", previousSubGraphNode)
@@ -313,14 +256,14 @@ func traverseGraph(dGraph *directedGraph) *directedGraph {
 			}
 			i := rand.Intn(len(currentMainGraphNode.nodesAfter.after))
 			currentMainGraphNode = currentMainGraphNode.nodesAfter.after[i]
-			if Compare(currentMainGraphNode.str, "\x98") == 0 {
+			if Compare(currentMainGraphNode.word, "\x98") == 0 {
 				break
 			}
 
 		}
 	}
 	if restart {
-		subgraph = traverseGraph(dGraph)
+		subgraph = traverseGraph(mainGraph)
 	}
 	return subgraph
 }
@@ -328,20 +271,20 @@ func traverseGraph(dGraph *directedGraph) *directedGraph {
 func (subgraph *directedGraph) iterateGraph() string {
 	i := 0
 	var buffer bytes.Buffer
-	var n *node
-	n = subgraph.nodes[i]
+	var currentNode *node
+	currentNode = subgraph.nodes[i]
 	for true {
 
-		buffer.WriteString(n.str)
+		buffer.WriteString(currentNode.word)
 		buffer.WriteString(" ")
 
-		if Compare(n.str, "\u65e6") == 0 {
+		if Compare(currentNode.word, TERMINATING_CHARACTER) == 0 {
 			break
 		}
-		if len(n.nodesAfter.after) == 0 {
+		if len(currentNode.nodesAfter.after) == 0 {
 			break
 		} else {
-			n = n.nodesAfter.after[0]
+			currentNode = currentNode.nodesAfter.after[0]
 		}
 	}
 	return buffer.String()
@@ -351,22 +294,22 @@ func (subgraph *directedGraph) iterateGraph() string {
 /*
 	adds node to directed graph
 */
-func (dGraph directedGraph) appendNode(n *node) *directedGraph {
-	dGraph.nodes = append(dGraph.nodes, n)
-	return &dGraph
+func (mainGraph directedGraph) appendNode(currentNode *node) *directedGraph {
+	mainGraph.nodes = append(mainGraph.nodes, currentNode)
+	return &mainGraph
 }
 
 /*
 	removes node from graph and replaces array slot with the last element
 */
-func (dGraph directedGraph) removeNode(n *node) *directedGraph {
-	is_found, _, number := dGraph.find_element(n.str)
+func (mainGraph directedGraph) removeNode(currentNode *node) *directedGraph {
+	is_found, _, number := find_element(currentNode.word, mainGraph.nodes)
 	if is_found {
-		dGraph.nodes[number] = dGraph.nodes[len(dGraph.nodes)-1]
-		dGraph.nodes = dGraph.nodes[:len(dGraph.nodes)-1]
+		mainGraph.nodes[number] = mainGraph.nodes[len(mainGraph.nodes)-1]
+		mainGraph.nodes = mainGraph.nodes[:len(mainGraph.nodes)-1]
 	}
 
-	return &dGraph
+	return &mainGraph
 }
 
 /*
@@ -376,15 +319,15 @@ func (dGraph directedGraph) removeNode(n *node) *directedGraph {
 */
 func toWordArray(input string) *wordArray {
 
-	sa := &wordArray{}
-	sa.array = append(sa.array, "\u65e5")
+	array_of_words := &wordArray{}
+	array_of_words.array = append(array_of_words.array, INITIATING_CHARACTER)
 	inputArray := strings.Split(input, " ")
 	for i := 0; i < len(inputArray); i++ {
-		sa.array = append(sa.array, inputArray[i])
+		array_of_words.array = append(array_of_words.array, inputArray[i])
 	}
-	sa.array = append(sa.array, "\u65e6")
+	array_of_words.array = append(array_of_words.array, TERMINATING_CHARACTER)
 
-	return sa
+	return array_of_words
 }
 
 //simple string comparison operator.
