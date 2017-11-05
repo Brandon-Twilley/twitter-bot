@@ -126,21 +126,52 @@ L:
 		time.Sleep(2 * time.Second)
 		goto L
 	}
-	subOpts := &geddit.ListingOptions{Limit: THREAD_SAMPLE_COUNT}
-	rp := &redditParams{redditBot: session, subredditOptions: subOpts}
-	return rp
+	options := &geddit.ListingOptions{Limit: THREAD_SAMPLE_COUNT}
+	parameters := &redditParams{redditBot: session, subredditOptions: options}
+	return parameters
+}
+
+/*
+	From our input, we create an array(slice) containing all sentences.
+	From here, we create a beginning character (/u65e5) and a terminating
+	character (/u65e6) from
+*/
+
+func toWordArray(input string) *wordArray {
+
+	array_of_words := &wordArray{}
+	array_of_words.array = append(array_of_words.array, INITIATING_CHARACTER)
+	inputArray := strings.Split(input, " ")
+	for i := 0; i < len(inputArray); i++ {
+		array_of_words.array = append(array_of_words.array, inputArray[i])
+	}
+	array_of_words.array = append(array_of_words.array, TERMINATING_CHARACTER)
+
+	return array_of_words
+}
+
+//simple string comparison operator.
+func Compare(a string, b string) int {
+	if a == b {
+		return 0
+	}
+	if a < b {
+		return -1
+	}
+	return 1
 }
 
 /*
 	returns an array of everything written, separated by sentences (periods)
 	and the end of posts
 */
-func createStringArray(rp redditParams) []*wordArray {
+
+func createStringArray(parameters redditParams) []*wordArray {
 	//sentenceArray
 	words := make([]*wordArray, 1)
 
-	for k := 0; k < len(*(rp.redditSubmissions)); k++ {
-		comments, err := rp.redditBot.Comments((*rp.redditSubmissions)[k])
+	for k := 0; k < len(*(parameters.redditSubmissions)); k++ {
+		comments, err := parameters.redditBot.Comments((*parameters.redditSubmissions)[k])
 		if err != nil {
 			fmt.Println("COULD NOT RETRIEVE COMMENTS FROM SUBREDDIT")
 			os.Exit(-1)
@@ -152,12 +183,12 @@ func createStringArray(rp redditParams) []*wordArray {
 		}
 
 		for i := 0; i < len(comments); i++ {
-			cmt := strings.Split(comments[i].Body, ".")
-			for j := 0; j < len(cmt); j++ {
-				if strings.Contains(cmt[j], "/") {
+			array_of_comment_sentences := strings.Split(comments[i].Body, ".")
+			for j := 0; j < len(array_of_comment_sentences); j++ {
+				if strings.Contains(array_of_comment_sentences[j], "/") {
 					break
 				}
-				words = append(words, toWordArray(cmt[j]))
+				words = append(words, toWordArray(array_of_comment_sentences[j]))
 			}
 		}
 	}
@@ -174,10 +205,10 @@ func createStringArray(rp redditParams) []*wordArray {
 func buildInitialGraph(words []*wordArray) *directedGraph {
 	mainGraph := &directedGraph{}
 	for i := 0; i < len(words); i++ {
-		sTree2 := &directedGraph{}
+		secondaryGraph := &directedGraph{}
 		if words[i] != nil {
-			sTree2.buildGraph(*words[i])
-			mainGraph.combineGraphs(*sTree2)
+			secondaryGraph.buildGraph(*words[i])
+			mainGraph.combineGraphs(*secondaryGraph)
 		}
 	}
 	return mainGraph
