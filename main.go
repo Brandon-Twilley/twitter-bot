@@ -37,53 +37,60 @@ func main() {
 	//Initializes twitter and reddit connection from the conf.go configurations
 	api = initializeTwitter()
 	redditParameters := (*initializeReddit())
-L:
-	//Acquire submissions from "totallynotrobots" subreddit.
-	submissions, err := redditParameters.redditBot.SubredditSubmissions(SUBREDDIT_TO_SCRAPE, geddit.HotSubmissions, (*redditParameters.subredditOptions))
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(-1)
-	}
-	redditParameters.redditSubmissions = &submissions
-
-	sentenceArray := createStringArray(redditParameters)
-	mainGraph := buildInitialGraph(sentenceArray)
-
-	/*
-		Regular expression to filter out any characters that aren't alphanumeric
-	*/
-	reg, err := regexp.Compile("[^a-zA-Z0-9 ]")
-
-	/*
-		i is used to count the amount of posts that are made each day.  After
-		posting (86400/POST_RATE) posts, we refresh, meaning we've posted a
-		days worth of tweets, refreshing each day.
-	*/
-	i := 0
 
 	for true {
-		var post string
+		break_flag := false
+		//Acquire submissions from "totallynotrobots" subreddit.
+		submissions, err := redditParameters.redditBot.SubredditSubmissions(SUBREDDIT_TO_SCRAPE, geddit.HotSubmissions, (*redditParameters.subredditOptions))
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(-1)
+		}
+		redditParameters.redditSubmissions = &submissions
+
+		sentenceArray := createStringArray(redditParameters)
+		mainGraph := buildInitialGraph(sentenceArray)
+
+		/*
+			Regular expression to filter out any characters that aren't alphanumeric
+		*/
+		reg, err := regexp.Compile("[^a-zA-Z0-9 ]")
+
+		/*
+			i is used to count the amount of posts that are made each day.  After
+			posting (86400/POST_RATE) posts, we refresh, meaning we've posted a
+			days worth of tweets, refreshing each day.
+		*/
+		i := 0
+
 		for true {
-			subgraph := traverseGraph(mainGraph)
-			post = subgraph.iterateGraph()
-			//post = *traverseGraph(*mainGraph)
-			if utf8.RuneCountInString(post) > 140 {
-			} else {
+			var post string
+			for true {
+				subgraph := traverseGraph(mainGraph)
+				post = subgraph.iterateGraph()
+				//post = *traverseGraph(*mainGraph)
+				if utf8.RuneCountInString(post) > 140 {
+				} else {
+					break
+				}
+			}
+
+			processedString := reg.ReplaceAllString(post, "")
+			api.PostTweet(processedString, nil)
+			fmt.Println("Tweet posted: ", post)
+
+			time.Sleep(POST_RATE * time.Second)
+			i++
+			if i >= (86400 / int(POST_RATE)) {
+				break_flag = true
+				i = 0
+			}
+			if break_flag {
 				break
 			}
 		}
-
-		processedString := reg.ReplaceAllString(post, "")
-		api.PostTweet(processedString, nil)
-		fmt.Println("Tweet posted: ", post)
-
-		time.Sleep(POST_RATE * time.Second)
-		i++
-		if i >= (86400 / int(POST_RATE)) {
-			goto L
-			i = 0
-		}
 	}
+
 }
 
 func initializeTwitter() *anaconda.TwitterApi {

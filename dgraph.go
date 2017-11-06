@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"math/rand"
-	"strings"
+	//"strings"
 	"time"
 )
 
@@ -111,6 +111,10 @@ func (mainGraph *directedGraph) combineGraphs(secondaryGraph directedGraph) *dir
 	}
 
 	subgraph_maingraph_intersection := []*node{}
+	/*
+		subgraph_minus_maingraph holds the new words from subgraph
+		that don't yet exist in our mainGraph.
+	*/
 	subgraph_minus_maingraph := []*node{}
 	for i := 0; i < len(secondaryGraph.nodes); i++ {
 		exists, current_secondary_graph_node, _ := find_element(secondaryGraph.nodes[i].word, mainGraph.nodes)
